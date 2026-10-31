@@ -1,0 +1,20 @@
+'use client';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { passkeyConfigured, supabase } from '../lib/supabase';
+export default function AuthGate({children}:{children:(userId:string)=>ReactNode}){
+  const [session,setSession]=useState<Session|null>(null);const [loading,setLoading]=useState(true);
+  const [email,setEmail]=useState('');const [token,setToken]=useState('');const [sent,setSent]=useState(false);
+  const lock=useRef(false);const [busy,setBusy]=useState(false);const [message,setMessage]=useState('');
+  useEffect(()=>{
+    let live=true;const client=supabase();
+    void client.auth.getSession().then(({data,error})=>{if(live){setSession(data.session);setLoading(false);if(error)setMessage('ログイン情報を読み取れませんでした。');}}).catch(()=>{if(live){setLoading(false);setMessage('通信を確認してください。');}});
+    const {data}=client.auth.onAuthStateChange((_event,next)=>{if(live){setSession(next);setLoading(false);}});
+    return()=>{live=false;data.subscription.unsubscribe();};
+  },[]);
+  async function action(work:()=>Promise<void>){if(lock.current)return;lock.current=true;setBusy(true);setMessage('');try{await work();}catch(e){setMessage(e instanceof Error?e.message:'認証を確認できませんでした。');}finally{lock.current=false;setBusy(false);}}
+  async function passkey(){await action(async()=>{const {error}=await supabase().auth.signInWithPasskey();if(error)throw new Error('パスキーでログインできませんでした。メールコードで復旧できます。');});}
+  if(loading)return <main className="app-shell"><p role="status">ログイン情報を確認しています…</p></main>;
+  if(session)return <><div className="auth-toolbar"><span>Eye Drops 専用アカウント</span>{passkeyConfigured()&&<button disabled={busy} className="text-button" onClick={()=>void action(async()=>{const {error}=await supabase().auth.registerPasskey();if(error)throw new Error('パスキーを登録できませんでした。対応端末と設定をご確認ください。');setMessage('パスキーを登録しました。メールコードは復旧用に残ります。');})}>パスキーを登録</button>}<button disabled={busy} className="text-button" onClick={()=>void action(async()=>{const {error}=await supabase().auth.signOut({scope:'local'});if(error)throw new Error('ログアウトできませんでした。');})}>ログアウト</button></div>{message&&<p className="message" role="status">{message}</p>}{children(session.user.id)}</>;
+  return <main className="app-shell auth-page"><section className="panel"><p className="eyebrow">目薬の管理を、ひとつに。</p><h1>Eye Drops</h1><p>専用アカウントで安全にログインします。</p>{passkeyConfigured()&&<button className="primary" disabled={busy} onClick={()=>void passkey()}>Face ID・Touch IDでログイン</button>}<form onSubmit={e=>{e.preventDefault();void action(async()=>{if(sent){const {error}=await supabase().auth.verifyOtp({email:email.trim(),token:token.trim(),type:'email'});if(error)throw new Error('コードを確認してください。有効期限を過ぎた場合は再送してください。');}else{const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(email.trim().toLowerCase()));const hash=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');if(hash!==process.env.NEXT_PUBLIC_EYE_EMAIL_HASH)throw new Error('Eye Drops専用メールアドレスを入力してください。');const {error}=await supabase().auth.signInWithOtp({email:email.trim(),options:{shouldCreateUser:true}});if(error)throw new Error('メールを送信できませんでした。専用ユーザーの登録・メール送信設定をご確認ください。');setSent(true);setMessage('メールに届いた認証コードを入力してください。');}});}}><label>専用メールアドレス<input type="email" autoComplete="email" required value={email} disabled={sent||busy} onChange={e=>setEmail(e.target.value)}/></label>{sent&&<label>認証コード<input inputMode="numeric" autoComplete="one-time-code" required maxLength={12} value={token} disabled={busy} onChange={e=>setToken(e.target.value)}/></label>}<button className="primary" disabled={busy}>{busy?'確認中…':sent?'ログイン':'メールコードを送る'}</button>{sent&&<button type="button" className="text-button" disabled={busy} onClick={()=>{setSent(false);setToken('');setMessage('再送はメール送信間隔・上限をご確認ください。');}}>メールの変更・再送</button>}</form>{message&&<p className="message" role="status">{message}</p>}<p className="muted small">パスキーが使えない場合はメールコードで復旧します。{!passkeyConfigured()&&'パスキーは設定・実機確認待ちです。'}</p></section></main>;
+}

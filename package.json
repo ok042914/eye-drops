@@ -1,0 +1,28 @@
+{
+  "name": "eye-drops",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --webpack --hostname 127.0.0.1 --port 3102",
+    "build": "next build --webpack",
+    "start": "next start --hostname 127.0.0.1 --port 3102",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import ./tests/tsx-loader.mjs --experimental-strip-types --experimental-test-isolation=none --test tests/*.test.ts",
+    "check:sql": "node scripts/sql-static.mjs"
+  },
+  "dependencies": {
+    "next": "16.2.10",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "@supabase/supabase-js": "2.105.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "@types/node": "25.9.5",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3"
+  }
+}
