@@ -29,3 +29,17 @@ test('an expired or incorrect code is shown without accepting a session',async()
   const {auth}=fakeAuth({error:{message:'expired'}});
   await assert.rejects(verifyLoginCode(auth,'lens-user@example.com','123456'),/最新のコード/);
 });
+
+test('project email limits explain the shared quota rather than blaming the address',async()=>{
+  const {auth,calls}=fakeAuth({error:{code:'over_email_send_rate_limit',status:429}});
+  await assert.rejects(sendLoginCode(auth,'lens-user@example.com'),error=>error instanceof Error&&error.message.includes('共有上限')&&error.message.includes('1時間')&&!error.message.includes('メールアドレスと接続'));
+  assert.equal(calls.length,1);
+});
+test('generic 429 responses are not treated as incorrect verification codes',async()=>{
+  const {auth}=fakeAuth({error:{status:429}});
+  await assert.rejects(verifyLoginCode(auth,'lens-user@example.com','123456'),/一時的に制限/);
+});
+test('provider recipient restrictions are distinguished from unknown failures',async()=>{
+  const {auth}=fakeAuth({error:{code:'email_address_not_authorized'}});
+  await assert.rejects(sendLoginCode(auth,'lens-user@example.com'),/メール送信設定/);
+});
