@@ -46,7 +46,7 @@ export default function OpeningPlanPanel({state,today}:{state:State;today:string
       <div className="estimate-grid">{plan.medications.map(({medication:m,estimate:e,overdue,missingActive})=><article className="estimate-card" key={m.id}>
         <h3>{m.name}の予測根拠</h3>
         <p>1本の期間：{e.days===null?'算出できません':`約${e.days}日`}<br/>根拠：{e.source==='actual'?'使い切り実績':e.source==='interval'?`${m.parallel}本前との開封間隔`:'履歴不足'}</p>
-        {e.samples.length>0&&<><p className="muted small">古い順に{e.samples.map(n=>`${n}日`).join(' → ')}。直近ほど重く、重み{e.weights.join('：')}の加重平均です。</p><p className="muted small">（{e.samples.map((n,i)=>`${n}日×${e.weights[i]}`).join(' ＋ ')}） ÷ {e.weights.reduce((n,w)=>n+w,0)} ＝ 約{e.days}日</p></>}
+        {e.samples.length>0&&<><p className="muted small">有効履歴全{e.samples.length}件の単純平均です。直近だけに絞らず、すべて同じ重さで計算します。</p><details><summary>平均に使った期間</summary><p className="muted small">{e.samples.map(n=>`${n}日`).join(' ／ ')}</p></details><p className="muted small">合計{e.samples.reduce((n,d)=>n+d,0)}日 ÷ {e.samples.length}件 ＝ 約{e.days}日（四捨五入）</p></>}
         {m.expirationDays!==null&&<p className="muted small">将来のボトルは設定済み期限{m.expirationDays}日も上限として計算します。</p>}
         {e.warnings.map((w,i)=><p className="muted small" key={i}>{w}</p>)}
         {overdue&&<p className="message warning">交換目安を過ぎた分は今日の予定にまとめています。実物と実績をご確認ください。</p>}

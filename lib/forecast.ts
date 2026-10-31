@@ -9,10 +9,11 @@ function median(values: number[]): number {
   return s.length % 2 ? s[i] : (s[i-1]+s[i])/2;
 }
 /** Use actual empty-bottle durations first. Calendar intervals are only proxies. */
-export function estimateDuration(med: Medication, bottles: Bottle[]): Estimate {
+export function estimateDuration(med: Medication, bottles: Bottle[], method: 'recent-median' | 'all-average' = 'recent-median'): Estimate {
   const valid = bottles.filter(b => b.medicationId === med.id && b.status !== 'cancelled' && b.version === med.version && b.parallel === med.parallel);
-  const measured = valid.filter(b => b.endReason === 'empty' && b.endedOn && validDate(b.openedOn) && validDate(b.endedOn))
-    .sort((a,b) => b.endedOn!.localeCompare(a.endedOn!)).slice(0,3)
+  const completed = valid.filter(b => b.endReason === 'empty' && b.endedOn && validDate(b.openedOn) && validDate(b.endedOn))
+    .sort((a,b) => b.endedOn!.localeCompare(a.endedOn!));
+  const measured = (method === 'all-average' ? completed : completed.slice(0,3))
     .map(b => differenceDays(b.openedOn, b.endedOn!));
   const warnings: string[] = [];
   const actual = measured.filter(n => n > 0 && n <= 365);
@@ -20,7 +21,8 @@ export function estimateDuration(med: Medication, bottles: Bottle[]): Estimate {
   let samples = actual;
   let source: Estimate['source'] = actual.length ? 'actual' : 'none';
   if (!samples.length) {
-    const opened = valid.filter(b => b.status !== 'discarded').sort((a,b) => a.openedOn.localeCompare(b.openedOn) || a.id.localeCompare(b.id)).slice(-(med.parallel === 1 ? 3 : Math.max(6,med.parallel+1)));
+    const history = valid.filter(b => b.status !== 'discarded').sort((a,b) => a.openedOn.localeCompare(b.openedOn) || a.id.localeCompare(b.id));
+    const opened = method === 'all-average' ? history : history.slice(-(med.parallel === 1 ? 3 : Math.max(6,med.parallel+1)));
     const intervals = opened.slice(med.parallel).map((b,i) => differenceDays(opened[i].openedOn,b.openedOn));
     samples = intervals.filter(n => n > 0 && n <= 365);
     if (samples.length !== intervals.length) warnings.push('0日・365日超の開封間隔は学習せず、履歴確認が必要です。');
@@ -30,7 +32,7 @@ export function estimateDuration(med: Medication, bottles: Bottle[]): Estimate {
   if (!samples.length) return { days:null, fastDays:null, slowDays:null, samples, source:'none', confidence:'low', warnings:[...warnings,'履歴不足のため日付・処方数量の目安を計算できません。'] };
   if (samples.length < 3) warnings.push(`有効な期間が${samples.length}件のため、精度は低めです。`);
   if (Math.max(...samples) >= Math.min(...samples)*1.5) warnings.push('期間のばらつきが大きいため、早めの不足目安も確認してください。');
-  return { days:Math.max(1,Math.round(median(samples))), fastDays:Math.min(...samples), slowDays:Math.max(...samples), samples, source, confidence:samples.length<3?'low':'reference', warnings };
+  return { days:Math.max(1,Math.round(method === 'all-average' ? samples.reduce((sum,n) => sum+n,0)/samples.length : median(samples))), fastDays:Math.min(...samples), slowDays:Math.max(...samples), samples, source, confidence:samples.length<3?'low':'reference', warnings };
 }
 
 function lifetime(b: Bottle | undefined, med: Medication, days: number): number {

@@ -2,22 +2,14 @@ import { addDays, addMonths, differenceDays, validDate } from './dates.ts';
 import { estimateDuration, openingSchedule, type Estimate } from './forecast.ts';
 import { activeBottles, stockFor, type Medication, type State } from './model.ts';
 
-export type RecentEstimate=Estimate & {weights:number[]};
 export type ConsultationOptions={nextVisitOn:string;followingVisitOn:string;reserveDays:number};
 export type PlannedOpening={date:string;medicationId:string;quantity:number;stockCovered:number;uncovered:number};
 export type Consultation={quantity:number|null;conservativeQuantity:number|null;required:number|null;beforeVisit:number|null;remainingAtVisit:number|null;shortfallBeforeVisit:number|null;endOn:string};
-export type MedicationPlan={medication:Medication;estimate:RecentEstimate;stock:number;overdue:boolean;missingActive:boolean;consultation:Consultation|null};
+export type MedicationPlan={medication:Medication;estimate:Estimate;stock:number;overdue:boolean;missingActive:boolean;consultation:Consultation|null};
 
-/** Keep the established actual-duration / parallel-interval rules, then weight recent evidence. */
-export function recentEstimate(med:Medication,state:State):RecentEstimate {
-  const base=estimateDuration(med,state.bottles);
-  // Actual durations are returned newest first; opening intervals are oldest first.
-  const samples=(base.source==='actual'?[...base.samples].reverse():base.samples).slice(-3);
-  const weights=samples.map((_,i)=>i+1);
-  const total=weights.reduce((n,w)=>n+w,0);
-  const days=total?Math.max(1,Math.round(samples.reduce((n,d,i)=>n+d*weights[i],0)/total)):null;
-  return {...base,days,samples,weights,fastDays:samples.length?Math.min(...samples):null,slowDays:samples.length?Math.max(...samples):null,
-    confidence:samples.length<3?'low':'reference'};
+/** Every valid sample contributes equally; keep established source and exclusion rules. */
+export function averageEstimate(med:Medication,state:State):Estimate {
+  return estimateDuration(med,state.bottles,'all-average');
 }
 
 export function validConsultation(today:string,options:ConsultationOptions):boolean {
@@ -27,7 +19,7 @@ export function validConsultation(today:string,options:ConsultationOptions):bool
     &&Number.isInteger(reserveDays)&&reserveDays>=0&&reserveDays<=90;
 }
 
-function consultation(state:State,med:Medication,today:string,estimate:RecentEstimate,options:ConsultationOptions):Consultation {
+function consultation(state:State,med:Medication,today:string,estimate:Estimate,options:ConsultationOptions):Consultation {
   const endOn=addDays(options.followingVisitOn,options.reserveDays);
   const empty:Consultation={quantity:null,conservativeQuantity:null,required:null,beforeVisit:null,remainingAtVisit:null,shortfallBeforeVisit:null,endOn};
   if(estimate.days===null)return empty;
@@ -52,7 +44,7 @@ export function sixMonthOpeningPlan(state:State,today:string,options?:Consultati
   const until=addMonths(today,6);
   const openings:PlannedOpening[]=[];
   const medications=state.medications.map(medication=>{
-    const estimate=recentEstimate(medication,state);
+    const estimate=averageEstimate(medication,state);
     const stock=stockFor(state,medication.id);
     const schedule=estimate.days===null?null:openingSchedule(medication,state.bottles,today,estimate.days,until);
     let used=0;

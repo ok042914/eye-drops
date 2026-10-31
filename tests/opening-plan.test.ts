@@ -2,30 +2,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { addMonths } from '../lib/dates.ts';
+import { addDays, addMonths } from '../lib/dates.ts';
 import { initialize, applyCommand } from '../lib/inventory.ts';
 import { defaultMedications, stockFor } from '../lib/model.ts';
-import { recentEstimate, sixMonthOpeningPlan, validConsultation } from '../lib/opening-plan.ts';
+import { averageEstimate, sixMonthOpeningPlan, validConsultation } from '../lib/opening-plan.ts';
 import OpeningPlanPanel from '../components/opening-plan-panel.tsx';
 const today='2026-10-31';let seq=0;const ids=()=>`plan-${++seq}`;
 const options={nextVisitOn:'2026-11-15',followingVisitOn:'2027-02-15',reserveDays:14};
 function fixture(stock=2){
   return initialize(defaultMedications().map(medication=>({medication,stock,activeDates:Array(medication.parallel).fill('2026-10-15'),historicalDates:medication.parallel===2?['2026-08-16','2026-08-16','2026-09-15','2026-09-15']:['2026-08-16','2026-09-15']})),today,'2026-11-15',ids);
 }
-test('recent opening intervals are weighted toward the latest usage pattern',()=>{
+test('opening intervals use an equally weighted arithmetic average',()=>{
   const med=defaultMedications()[1];
   const state=initialize([{medication:med,stock:2,activeDates:['2026-10-15'],historicalDates:['2026-08-01','2026-09-15']}],today,null,ids);
-  const estimate=recentEstimate(med,state);
-  assert.deepEqual(estimate.samples,[45,30]);assert.deepEqual(estimate.weights,[1,2]);assert.equal(estimate.days,35);
-  assert.equal(sixMonthOpeningPlan(state,today).openings[0].date,'2026-11-19');
+  const estimate=averageEstimate(med,state);
+  assert.deepEqual(estimate.samples,[45,30]);assert.equal(estimate.days,38);
+  assert.equal(sixMonthOpeningPlan(state,today).openings[0].date,'2026-11-22');
 });
-test('recent actual empty-bottle durations retain priority and chronological weights',()=>{
+test('all actual empty-bottle durations retain source priority with equal weights',()=>{
   const state=fixture();const med=state.medications[1];
   const bottle=state.bottles.find(b=>b.medicationId===med.id)!;
   state.bottles.push({...bottle,id:ids(),openedOn:'2026-07-01',endedOn:'2026-08-10',status:'finished',endReason:'empty'},
     {...bottle,id:ids(),openedOn:'2026-08-15',endedOn:'2026-09-14',status:'finished',endReason:'empty'},
     {...bottle,id:ids(),openedOn:'2026-10-01',endedOn:'2026-10-21',status:'finished',endReason:'empty'});
-  const estimate=recentEstimate(med,state);assert.equal(estimate.source,'actual');assert.deepEqual(estimate.samples,[40,30,20]);assert.equal(estimate.days,27);
+  const estimate=averageEstimate(med,state);assert.equal(estimate.source,'actual');assert.deepEqual([...estimate.samples].sort((a,b)=>a-b),[20,30,40]);assert.equal(estimate.days,30);
 });
 test('six calendar months are exclusive at the end, sorted across drugs, with same-day dual demand',()=>{
   const plan=sixMonthOpeningPlan(fixture(1),today,options);
@@ -79,6 +79,22 @@ test('schedule respects configured expiry, flags overdue dates and preserves rea
 });
 test('consultation cards and upcoming predictions render separately from actual history',()=>{
   const html=renderToStaticMarkup(createElement(OpeningPlanPanel,{state:fixture(),today}));
-  for(const label of ['今後6か月','今後の開封予定一覧','次回診察日','次々回診察日','予備日数','直近ほど重く','予測','実際の開封履歴とは別','ドルモロール','エイベリス'])assert.ok(html.includes(label),label);
+  for(const label of ['今後6か月','今後の開封予定一覧','次回診察日','次々回診察日','予備日数','単純平均','予測','実際の開封履歴とは別','ドルモロール','エイベリス'])assert.ok(html.includes(label),label);
   assert.ok(!html.includes('朝用'));assert.ok(!html.includes('夜用'));assert.ok(html.includes('不確実性'));
+});
+
+test('all opening history is included beyond the former three or six date window',()=>{
+  const dates=['2026-06-01','2026-07-01','2026-08-10','2026-09-14'];
+  for(const med of defaultMedications()){
+    const state=initialize([{medication:med,stock:3,activeDates:Array(med.parallel).fill('2026-10-15'),historicalDates:dates.flatMap(d=>Array(med.parallel).fill(d))}],today,null,ids);
+    const before=JSON.stringify(state);const estimate=averageEstimate(med,state);
+    assert.equal(estimate.samples.length,4*med.parallel);assert.equal(estimate.days,34);assert.equal(JSON.stringify(state),before);
+    assert.equal(estimate.confidence,'reference');
+  }
+});
+test('all completed durations are included beyond three samples, excluding cancelled, discarded and other settings',()=>{
+  const state=fixture();const med=state.medications[1];const base=state.bottles.find(b=>b.medicationId===med.id)!;
+  state.bottles=[10,20,30,40,50].map((days,i)=>({...base,id:ids(),openedOn:'2026-06-01',endedOn:addDays('2026-06-01',days),status:'finished' as const,endReason:'empty' as const}));
+  state.bottles.push({...base,id:ids(),status:'cancelled',endedOn:'2026-10-20',endReason:'empty'}, {...base,id:ids(),status:'discarded',endedOn:'2026-10-20',endReason:'discarded'}, {...state.bottles[0],id:ids(),version:2});
+  const estimate=averageEstimate(med,state);assert.equal(estimate.samples.length,5);assert.equal(estimate.days,30);assert.equal(estimate.source,'actual');
 });
