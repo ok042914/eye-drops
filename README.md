@@ -4,7 +4,7 @@ iPhone・Mac向けの目薬在庫管理PWA。Next.js / TypeScript / Tailwind / S
 
 - 初期設定ウィザード、未開封在庫、1本ごとの開封・使い切り・廃棄・訂正。
 - 過去履歴、処方・受取、棚卸し、通院予定、使用期間・在庫不足・処方本数の目安。
-- メールOTP、クラウド保存、revision・操作IDによる競合／二重登録対策。
+- Lens Stockと同じ登録済みメールのOTP、クラウド保存、revision・操作IDによる競合／二重登録対策。
 - パスキーの登録・ログイン処理は実装済み。共有設定と実機確認待ちのため現在は無効。
 
 本番URL：https://eye-drops-six.vercel.app

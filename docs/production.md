@@ -2,7 +2,7 @@
 
 共有Supabaseにeye_drops_v1_private_invokerを適用。11テーブル、RLS、18個のINVOKER関数（公開5）。専用ロール作成・共有所属変更・Auth設定変更なし。
 旧eye_stock_v1.sqlは専用ロール案の未適用資料であり、今後実行しない。
-登録は承認アドレスのSHA256と署名済みJWTのOTP認証方法をRLSで検査し、本人UUIDだけEyeプロフィールへ登録する。初回はメールOTPが必須。管理者による確認済み扱いへの変更はしない。
+Lens Stockに登録済みの本人Auth UUIDへ、Eye Dropsのプロフィールを管理接続で追加済み。ログインはLens Stockと同じメールOTP（shouldCreateUser:false）。Authユーザー・確認済みフラグ・Lens Stockデータ・共有認証設定は変更しない。Eyeの既存RLSが本人UUIDを検査する。旧専用アドレスのOTP自己登録ポリシーは既存構成として残るが、クライアントの専用メールハッシュ制限は撤去した。
 パスキーのクライアント処理は実装したが、共有設定変更の承認・RP設定・iPhone/Macで登録/ログイン/復旧の確認まで有効表示にしない。
 在庫データはメモリとクラウドのみ。端末に保持するのは専用キーのAuthセッション。書込みは自動再試行せず、結果不明時は同一操作IDで明示確認・再送。
 RPCはプロフィール行ロック・revision・操作ID・台帳照合で保護。非公開eye_stockをData APIの公開スキーマへ追加しない。
@@ -22,3 +22,9 @@ GitHub：https://github.com/ok042914/eye-drops 。CLIの認証失効・外向き
 - これは署名済みJWTによるHTTP経由の本人ログインの検証ではない。メール受信・OTP入力・実端末操作・端末間同期は引き続き未確認。
 - 現行本番のトップページと `/api/health` がHTTP 200。Auth到達、Email有効、Eyeスキーマ非公開を確認。直近30分のVercel error/fatalログ該当なし。
 - 共有Supabaseの11テーブルのRLS/FORCEと、公開5関数がSECURITY INVOKERであることを再確認。Eyeプロフィール0件の状態で開始し、既存ユーザーの業務データは変更していない。
+
+## Lens Stockとログインを統一
+
+- `supabase/operations/enroll_lens_account.sql`を適用。確認済みLensアカウントが一つだけであることを検査し、その既存UUIDのEyeプロフィールだけを追加。Lens StockとAuthへの書込み、既存Eyeデータの置換、RLSの緩和は行っていない。
+- 既存アカウントへメールコードを送信し、別フォームで検証する。60秒以内の再送を抑止。コード再送・メール変更が可能。専用メールのハッシュ照合と自動新規登録を廃止。`NEXT_PUBLIC_EYE_EMAIL_HASH`は不要（既存Vercelの値は未使用）。セッション保存キーとローカルログアウトはEye専用を維持。
+- authenticatedロールとLensの本人UUIDで、Eyeのenrollとsnapshotの呼出し成功を確認。実際のメール受信とOTP入力は本人の次回ログインで確認する。
