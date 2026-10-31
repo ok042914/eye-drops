@@ -34,7 +34,9 @@ test('every Phase-2 command is covered by the SQL action allowlist',async()=>{
     return ((prop.type as ts.LiteralTypeNode).literal as ts.StringLiteral).text;
   });
   const allowlist=sql.slice(sql.indexOf('allowed_keys:=case action'),sql.indexOf('-- Serialize ALL'));
-  for(const action of actions)assert.ok(allowlist.includes(`when '${action}' then`),action);
+  const reserveSql=await readFile(new URL('../supabase/sql/eye_stock_reserve_days.sql',import.meta.url),'utf8');
+  const currentAllowlist=reserveSql.slice(reserveSql.indexOf('allowed_keys:=case action'),reserveSql.indexOf('-- Serialize ALL'));
+  for(const action of actions)assert.ok(allowlist.includes(`when '${action}' then`)||currentAllowlist.includes(`when '${action}' then`),action);
   assert.ok(allowlist.includes("when 'initialize' then"));
 });
 test('replay is checked under owner lock before revision and compares full JSONB payload',()=>{

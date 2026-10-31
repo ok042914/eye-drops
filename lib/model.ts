@@ -23,7 +23,7 @@ export type Receipt = {
 };
 export type Visit = { id: string; date: string; nextDate: string; note: string };
 export type State = {
-  schemaVersion: 1; revision: number; initializedOn: string;
+  schemaVersion: 1; revision: number; initializedOn: string; reserveDays: number;
   medications: Medication[]; bottles: Bottle[]; movements: Movement[];
   receipts: Receipt[]; visits: Visit[]; nextVisitOn: string | null;
   operations: { id: string; fingerprint: string }[];

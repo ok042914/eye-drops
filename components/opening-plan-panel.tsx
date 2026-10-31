@@ -1,17 +1,24 @@
 'use client';
 import { useState } from 'react';
 import type { State } from '../lib/model';
+import type { Command } from '../lib/inventory';
+import { DEFAULT_RESERVE_DAYS, MAX_RESERVE_DAYS, validReserveDays } from '../lib/preferences';
 import { addDays, addMonths, displayDate } from '../lib/dates';
 import { sixMonthOpeningPlan, validConsultation } from '../lib/opening-plan';
 
-export default function OpeningPlanPanel({state,today}:{state:State;today:string}){
+export default function OpeningPlanPanel({state,today,run}:{state:State;today:string;run?:(command:Command)=>boolean}){
   const initialVisit=state.nextVisitOn&&state.nextVisitOn>=today?state.nextVisitOn:today;
   const [visitOverride,setVisitOverride]=useState<string|null>(null);
   const consult=visitOverride??initialVisit;
   const [followingOverride,setFollowingOverride]=useState<string|null>(null);
   const following=followingOverride??addMonths(consult||today,3);
-  const [reserve,setReserve]=useState('14');
-  const options={nextVisitOn:consult,followingVisitOn:following,reserveDays:reserve===''?NaN:Number(reserve)};
+  const savedReserve=state.reserveDays??DEFAULT_RESERVE_DAYS;
+  const [reserveDraft,setReserveDraft]=useState<{base:number;value:string}|null>(null);
+  const reserve=reserveDraft?.base===savedReserve?reserveDraft.value:String(savedReserve);
+  const draftValue=reserve===''?NaN:Number(reserve);
+  const reserveValid=validReserveDays(draftValue);
+  const reserveChanged=draftValue!==savedReserve;
+  const options={nextVisitOn:consult,followingVisitOn:following,reserveDays:draftValue};
   const valid=validConsultation(today,options);
   const plan=sixMonthOpeningPlan(state,today,valid?options:undefined);
   const endOn=valid?addDays(following,options.reserveDays):null;
@@ -21,9 +28,11 @@ export default function OpeningPlanPanel({state,today}:{state:State;today:string
       <div className="form-grid">
         <label>次回診察日<input type="date" min={today} max={addDays(today,730)} value={consult} onChange={e=>{setVisitOverride(e.target.value);setFollowingOverride(null);}}/></label>
         <label>次々回診察日<input type="date" min={consult?addDays(consult,1):today} max={addDays(today,1000)} value={following} onChange={e=>setFollowingOverride(e.target.value)}/></label>
-        <label>予備日数（日）<input type="number" min={0} max={90} step={1} inputMode="numeric" value={reserve} onChange={e=>setReserve(e.target.value)}/></label>
+        <label>予備日数（日）<input type="number" min={0} max={MAX_RESERVE_DAYS} step={1} inputMode="numeric" value={reserve} onChange={e=>setReserveDraft({base:savedReserve,value:e.target.value})}/></label>
       </div>
-      <p className="hint">次回診察日から次々回診察日＋予備日数の前日までをカバーする本数です。次々回は3暦月後、予備は14日を提案します。日付と予備日数は試算用で、受診予定の保存は下の通院記録で行います。</p>
+      <div className="actions"><button type="button" className="secondary" disabled={!run||!reserveValid||!reserveChanged} onClick={()=>run?.({action:'preferences',reserveDays:draftValue})}>共通の予備日数を保存</button><span className="muted small">保存済み：{savedReserve}日{reserveChanged?'（入力中の値は未保存）':''}</span></div>
+      <p className="muted small">保存すると、同じアカウントのMacとiPhoneで共通になります。別の端末では画面を開き直すか「最新データに更新」で反映します。</p>
+      <p className="hint">次回診察日から次々回診察日＋予備日数の前日までをカバーする本数です。次々回は3暦月後を提案します。予備日数は保存済みの共通設定を使用し、変更後は保存ボタンで確定します。診察日は試算用で、受診予定の保存は下の通院記録で行います。</p>
       {!valid?<p className="message error" role="alert">次回は今日から730日以内、次々回はその翌日以降・今日から1000日以内、予備日数は0〜90日の整数で指定してください。</p>:<>
         <p className="muted small">相談対象：{displayDate(consult)}〜{displayDate(addDays(endOn!,-1))}。実際の処方は医師に相談してください。</p>
         <div className="estimate-grid">{plan.medications.map(({medication:m,estimate:e,stock,consultation:p})=><article className="estimate-card" key={m.id}>

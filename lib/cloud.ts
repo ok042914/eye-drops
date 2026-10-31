@@ -1,3 +1,4 @@
+import { DEFAULT_RESERVE_DAYS } from './preferences';
 import type { Bottle, Medication, Movement, Receipt, State, Visit } from './model';
 import { supabase } from './supabase';
 import type { MutationArgs } from './db-contract';
@@ -31,7 +32,7 @@ export async function loadState(known?:State|null):Promise<State|null>{
   const check=await rpc<Row>('eye_stock_snapshot',{known_revision:meta.revision});
   if(!check.unchanged)throw new CloudError('PT409','取得中に更新されました。もう一度更新してください。');
   const meds=(meta.medications as Row[]).map(m=>({id:m.medication_id,name:m.name,volumeMl:Number(m.volume_ml),timesPerDay:m.times_per_day,parallel:m.parallel,expirationDays:m.expiration_days,expirationSource:m.expiration_source,directions:m.directions,version:m.version})) as Medication[];
-  return {schemaVersion:1,revision:Number(meta.revision),initializedOn:String(meta.initializedOn),nextVisitOn:meta.nextVisitOn as string|null,medications:meds,
+  return {schemaVersion:1,revision:Number(meta.revision),initializedOn:String(meta.initializedOn),nextVisitOn:meta.nextVisitOn as string|null,reserveDays:Number(meta.reserveDays??DEFAULT_RESERVE_DAYS),medications:meds,
     bottles:bottles.map(b=>({id:b.id,medicationId:b.medication_id,openedOn:b.opened_on,origin:b.origin,status:b.status,endedOn:b.ended_on,endReason:b.end_reason,replacesId:b.replaces_id,version:b.settings_version,parallel:b.parallel,expirationDays:b.expiration_days})) as Bottle[],
     movements:movements.reverse().map(m=>({id:m.id,medicationId:m.medication_id,delta:m.delta,kind:m.kind,date:m.effective_on,referenceId:m.bottle_id??m.prescription_id??null,note:m.note,operationId:m.operation_id})) as Movement[],
     receipts:receipts.map(r=>({id:r.id,medicationId:r.medication_id,prescribedOn:r.prescribed_on,receivedOn:r.received_on??null,prescribedQuantity:r.prescribed_quantity,receivedQuantity:r.received_quantity??0,note:r.note,visitId:r.visit_id,cancelled:r.cancelled})) as Receipt[],

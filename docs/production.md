@@ -34,3 +34,7 @@ GitHub：https://github.com/ok042914/eye-drops 。CLIの認証失効・外向き
 認証ログで2026-10-31 10:47 UTCのOTP要求が429 / over_email_send_rate_limitで拒否されたことを確認。標準送信元からの直近の送信成功も記録されており、共有プロジェクトのメール送信枠を消費している。アドレスや接続を一律に疑う表示を修正し、共有上限・一般的な429・送信先制限を区別する。クライアントの60秒再送抑止はプロジェクトの時間あたり上限を解除しない。追加の試験メール送信や自動再試行は行わない。
 
 送信枠の回復を待つことが当面の対処。恒久対応はカスタムSMTP（https://supabase.com/docs/guides/auth/auth-smtp）などの共有Auth設定変更になるため、接続情報・既存アプリへの影響を確認したうえで別途実施する。今回、共有設定には変更なし。
+
+## アカウント共通の予備日数
+
+Eye専用マイグレーションeye_stock_account_reserve_daysを適用。Eyeプロフィールにreserve_days（初期14、0〜90）を追加し、既存snapshot/mutate経由で保存・同期する。詳細は[opening-plan.md](opening-plan.md)を参照。既存在庫、開封履歴、Auth設定、Lens Stockの設定・権限は変更なし。

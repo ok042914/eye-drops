@@ -1,3 +1,4 @@
+import { DEFAULT_RESERVE_DAYS } from './preferences.ts';
 import { addDays, addMonths, differenceDays, validDate } from './dates.ts';
 import { activeBottles, stockFor } from './model.ts';
 import type { Bottle, Medication, State } from './model.ts';
@@ -77,7 +78,7 @@ export type PrescriptionEstimate = { quantity:number|null; conservativeQuantity:
 export function prescriptionEstimate(state:State,medicationId:string,today:string,visitOn:string):PrescriptionEstimate {
   if(!validDate(visitOn)||visitOn<today||differenceDays(today,visitOn)>730)throw new Error('次回受診日は今日から2年以内で指定してください。');
   const med=state.medications.find(m=>m.id===medicationId);if(!med)throw new Error('薬剤がありません。');
-  const estimate=estimateDuration(med,state.bottles); const endOn=addDays(addMonths(visitOn,3),14);
+  const estimate=estimateDuration(med,state.bottles); const endOn=addDays(addMonths(visitOn,3),state.reserveDays??DEFAULT_RESERVE_DAYS);
   const note='受診時の相談用の目安です。使用中の残期間は推定で、実測残量ではありません。未受取の処方は手持ちに含めません。';
   if(estimate.days===null)return{quantity:null,conservativeQuantity:null,remainingAtVisit:null,required:null,endOn,shortageBeforeVisit:false,note:'履歴不足のため計算できません。'+note};
   const count=(days:number,conservative:boolean)=>{

@@ -1,3 +1,4 @@
+import { DEFAULT_RESERVE_DAYS, validReserveDays } from './preferences.ts';
 import { HISTORY_START, validDate, differenceDays } from './dates.ts';
 import { activeBottles, stockFor } from './model.ts';
 import type { Bottle, InitialMedication, Medication, State } from './model.ts';
@@ -23,7 +24,7 @@ function bottle(id: string, med: Medication, openedOn: string, origin: Bottle['o
 export function initialize(items: InitialMedication[], today: string, nextVisitOn: string | null, ids: () => string = () => crypto.randomUUID()): State {
   if (!validDate(today) || !items.length || new Set(items.map(i => i.medication.id)).size !== items.length) fail('INVALID', '初期設定を確認してください。');
   if (nextVisitOn && (!validDate(nextVisitOn)||nextVisitOn<today||differenceDays(today,nextVisitOn)>730)) fail('INVALID_DATE', '次回受診日は今日から2年以内で指定してください。');
-  const state: State = { schemaVersion: 1, revision: 0, initializedOn: today, medications: [], bottles: [], movements: [], receipts: [], visits: [], nextVisitOn, operations: [] };
+  const state: State = { schemaVersion: 1, revision: 0, initializedOn: today, reserveDays: DEFAULT_RESERVE_DAYS, medications: [], bottles: [], movements: [], receipts: [], visits: [], nextVisitOn, operations: [] };
   for (const item of items) {
     validateMedication(item.medication); quantity(item.stock);
     if (item.activeDates.length > item.medication.parallel) fail('LIMIT', '使用中本数が並行本数を超えています。');
@@ -45,6 +46,7 @@ export type Command =
   | { action: 'cancel_receipt'; receiptId: string }
   | { action: 'adjust'; medicationId: string; quantity: number; note: string }
   | { action: 'visit'; date: string; nextDate: string; note: string }
+  | { action: 'preferences'; reserveDays: number }
   | { action: 'settings'; medication: Medication }
   | { action: 'add_medication'; medication: Medication; stock: number };
 
@@ -139,6 +141,10 @@ export function applyCommand(input: State, command: Command, operationId: string
       if (!validDate(command.nextDate) || command.nextDate <= command.date || command.note.length > 500) fail('INVALID', '次回受診日は受診日より後にしてください。');
       state.visits.push({ id: ids(), date: command.date, nextDate: command.nextDate, note: command.note });
       state.nextVisitOn = [...state.visits].sort((a,b) => b.date.localeCompare(a.date))[0].nextDate; break;
+    }
+    case 'preferences': {
+      if(!validReserveDays(command.reserveDays))fail('INVALID','予備日数は0〜90日の整数で指定してください。');
+      state.reserveDays=command.reserveDays;break;
     }
     case 'settings': {
       const old = getMed(command.medication.id); validateMedication(command.medication);

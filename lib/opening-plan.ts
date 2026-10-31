@@ -1,3 +1,4 @@
+import { validReserveDays } from './preferences.ts';
 import { addDays, addMonths, differenceDays, validDate } from './dates.ts';
 import { estimateDuration, openingSchedule, type Estimate } from './forecast.ts';
 import { activeBottles, stockFor, type Medication, type State } from './model.ts';
@@ -16,7 +17,7 @@ export function validConsultation(today:string,options:ConsultationOptions):bool
   const {nextVisitOn,followingVisitOn,reserveDays}=options;
   return validDate(today)&&validDate(nextVisitOn)&&validDate(followingVisitOn)&&nextVisitOn>=today&&followingVisitOn>nextVisitOn
     &&differenceDays(today,nextVisitOn)<=730&&differenceDays(today,followingVisitOn)<=1000
-    &&Number.isInteger(reserveDays)&&reserveDays>=0&&reserveDays<=90;
+    &&validReserveDays(reserveDays);
 }
 
 function consultation(state:State,med:Medication,today:string,estimate:Estimate,options:ConsultationOptions):Consultation {
